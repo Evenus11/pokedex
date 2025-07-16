@@ -2,12 +2,19 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
 	"os"
 	"strings"
 )
 
 func main() {
+	cfg := &config{}
+
+	// initsalize the cli
 	scanner := bufio.NewScanner(os.Stdin)
 	commands = map[string]cliCommand{
 		"exit": {
@@ -31,15 +38,16 @@ func main() {
 			callback:    commandMapb,
 		},
 	}
+	// sets up an infinate loop so program wont exit unless we exit
 	for {
 
 		fmt.Print("pokedex >")
 		scanner.Scan()
-		input := scanner.Text()
+		input := scanner.Text() // checks for input
 		ci := cleanInput(input)
 		comand, exists := commands[ci[0]]
 		if exists {
-			err := comand.callback()
+			err := comand.callback(cfg)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -49,13 +57,14 @@ func main() {
 	}
 }
 
-func commandExit() error {
+// comand functions
+func commandExit(cfg *config) error {
 	fmt.Print("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 	return nil
 }
 
-func commandhelp() error {
+func commandhelp(cfg *config) error {
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Println("Usage: \n")
 
@@ -65,21 +74,72 @@ func commandhelp() error {
 	return nil
 }
 
-func commandMap() error {
+func commandMap(cfg *config) error {
+	locationAreaURL = *cfg.Next
+
+	res, err := http.Get(locationAreaURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var locationArea LocationArea
+	err = json.Unmarshal(body, &locationArea)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, result := range locationArea.Results {
+		fmt.Println(result.Name)
+	}
+
+	cfg.Next = &locationArea.Next
+	cfg.Previous = &locationArea.Previous
+
 	return nil
 }
 
-func commandMapb() error {
+func commandMapb(cfg *config) error {
+	locationAreaURL = *cfg.Previous
+
+	res, err := http.Get(locationAreaURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var locationArea LocationArea
+	err = json.Unmarshal(body, &locationArea)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, result := range locationArea.Results {
+		fmt.Println(result.Name)
+	}
+
+	cfg.Next = &locationArea.Next
+	cfg.Previous = &locationArea.Previous
+
 	return nil
+}
+
+type config struct {
+	Next     *string
+	Previous *string
 }
 
 type cliCommand struct {
 	name        string
 	description string
-	callback    func() error
+	callback    func(cfg *config) error
 }
-
-var commands map[string]cliCommand
 
 func cleanInput(text string) []string {
 	var cleaned []string
@@ -87,4 +147,19 @@ func cleanInput(text string) []string {
 	t = strings.ToLower(t)
 	cleaned = strings.Fields(t)
 	return cleaned
+}
+
+// struct and variable setup
+var commands map[string]cliCommand
+
+var locationAreaURL string
+
+type LocationArea struct {
+	Count    int    `json:"count"`
+	Next     string `json:"next"`
+	Previous any    `json:"previous"`
+	Results  []struct {
+		Name string `json:"name"`
+		URL  string `json:"url"`
+	} `json:"results"`
 }
