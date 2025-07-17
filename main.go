@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -75,21 +74,25 @@ func commandhelp(cfg *config) error {
 }
 
 func commandMap(cfg *config) error {
-	locationAreaURL = *cfg.Next
-
+	if cfg.Next == nil {
+		locationAreaURL = "https://pokeapi.co/api/v2/location-area/"
+	} else {
+		locationAreaURL = *cfg.Next
+	}
 	res, err := http.Get(locationAreaURL)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("failed to get response from client:%w", err)
 	}
+	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("io.ReadAll failed: %w", err)
 	}
 	var locationArea LocationArea
 	err = json.Unmarshal(body, &locationArea)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("json.Unmarshal failed: %w", err)
 	}
 
 	for _, result := range locationArea.Results {
@@ -103,21 +106,25 @@ func commandMap(cfg *config) error {
 }
 
 func commandMapb(cfg *config) error {
-	locationAreaURL = *cfg.Previous
+	if cfg.Previous == nil {
+		fmt.Println("you're on the first page")
+	} else {
+		locationAreaURL = *cfg.Previous
+	}
 
 	res, err := http.Get(locationAreaURL)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Errorf("failed to get response from client: %w", err)
 	}
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Errorf("io.ReadAll failed: %w", err)
 	}
 	var locationArea LocationArea
 	err = json.Unmarshal(body, &locationArea)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Errorf("json.Unmarshal failed: %w", err)
 	}
 
 	for _, result := range locationArea.Results {
@@ -157,7 +164,7 @@ var locationAreaURL string
 type LocationArea struct {
 	Count    int    `json:"count"`
 	Next     string `json:"next"`
-	Previous any    `json:"previous"`
+	Previous string `json:"previous"`
 	Results  []struct {
 		Name string `json:"name"`
 		URL  string `json:"url"`
