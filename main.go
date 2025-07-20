@@ -65,7 +65,7 @@ func commandExit(cfg *config) error {
 
 func commandhelp(cfg *config) error {
 	fmt.Println("Welcome to the Pokedex!")
-	fmt.Println("Usage: \n")
+	fmt.Println("Usage: ")
 
 	for _, c := range commands {
 		fmt.Printf("%s: %s\n", c.name, c.description)
@@ -97,6 +97,7 @@ func commandMap(cfg *config) error {
 
 	for _, result := range locationArea.Results {
 		fmt.Println(result.Name)
+
 	}
 
 	cfg.Next = &locationArea.Next
@@ -114,17 +115,17 @@ func commandMapb(cfg *config) error {
 
 	res, err := http.Get(locationAreaURL)
 	if err != nil {
-		fmt.Errorf("failed to get response from client: %w", err)
+		return fmt.Errorf("failed to get response from client: %w", err)
 	}
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		fmt.Errorf("io.ReadAll failed: %w", err)
+		return fmt.Errorf("io.ReadAll failed: %w", err)
 	}
 	var locationArea LocationArea
 	err = json.Unmarshal(body, &locationArea)
 	if err != nil {
-		fmt.Errorf("json.Unmarshal failed: %w", err)
+		return fmt.Errorf("json.Unmarshal failed: %w", err)
 	}
 
 	for _, result := range locationArea.Results {
