@@ -7,11 +7,15 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"pokedex/pokecache"
 	"strings"
+	"time"
 )
 
 func main() {
-	cfg := &config{}
+	cfg := &config{
+		cache: pokecache.NewCache(time.Second * 5),
+	}
 
 	// initsalize the cli
 	scanner := bufio.NewScanner(os.Stdin)
@@ -74,29 +78,47 @@ func commandhelp(cfg *config) error {
 }
 
 func commandMap(cfg *config) error {
+	var locationArea LocationArea
 	if cfg.Next == nil {
 		locationAreaURL = "https://pokeapi.co/api/v2/location-area/"
 	} else {
 		locationAreaURL = *cfg.Next
 	}
-	res, err := http.Get(locationAreaURL)
-	if err != nil {
-		return fmt.Errorf("failed to get response from client:%w", err)
-	}
-	defer res.Body.Close()
 
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return fmt.Errorf("io.ReadAll failed: %w", err)
-	}
-	var locationArea LocationArea
-	err = json.Unmarshal(body, &locationArea)
-	if err != nil {
-		return fmt.Errorf("json.Unmarshal failed: %w", err)
-	}
+	resc, ok := cfg.cache.Get(locationAreaURL)
+	if !ok {
+		res, err := http.Get(locationAreaURL)
+		if err != nil {
+			return fmt.Errorf("failed to get response from client:%w", err)
+		}
+		defer res.Body.Close()
 
-	for _, result := range locationArea.Results {
-		fmt.Println(result.Name)
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return fmt.Errorf("io.ReadAll failed: %w", err)
+		}
+
+		err = json.Unmarshal(body, &locationArea)
+		if err != nil {
+			return fmt.Errorf("json.Unmarshal failed: %w", err)
+		}
+		cfg.cache.Add(locationAreaURL, body)
+
+		for _, result := range locationArea.Results {
+			fmt.Println(result.Name)
+
+		}
+	} else {
+
+		err := json.Unmarshal(resc, &locationArea)
+		if err != nil {
+			return fmt.Errorf("json.Unmarshal failed: %w", err)
+		}
+		for _, result := range locationArea.Results {
+			fmt.Println(result.Name)
+
+		}
+		fmt.Println("pulled form cache")
 
 	}
 
@@ -107,29 +129,44 @@ func commandMap(cfg *config) error {
 }
 
 func commandMapb(cfg *config) error {
+	var locationArea LocationArea
 	if cfg.Previous == nil {
 		fmt.Println("you're on the first page")
 	} else {
 		locationAreaURL = *cfg.Previous
 	}
 
-	res, err := http.Get(locationAreaURL)
-	if err != nil {
-		return fmt.Errorf("failed to get response from client: %w", err)
-	}
+	resc, ok := cfg.cache.Get(locationAreaURL)
+	if !ok {
+		res, err := http.Get(locationAreaURL)
+		if err != nil {
+			return fmt.Errorf("failed to get response from client: %w", err)
+		}
 
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return fmt.Errorf("io.ReadAll failed: %w", err)
-	}
-	var locationArea LocationArea
-	err = json.Unmarshal(body, &locationArea)
-	if err != nil {
-		return fmt.Errorf("json.Unmarshal failed: %w", err)
-	}
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return fmt.Errorf("io.ReadAll failed: %w", err)
+		}
 
-	for _, result := range locationArea.Results {
-		fmt.Println(result.Name)
+		err = json.Unmarshal(body, &locationArea)
+		if err != nil {
+			return fmt.Errorf("json.Unmarshal failed: %w", err)
+		}
+
+		for _, result := range locationArea.Results {
+			fmt.Println(result.Name)
+		}
+	} else {
+		err := json.Unmarshal(resc, &locationArea)
+		if err != nil {
+			return fmt.Errorf("json.Unmarshal failed: %w", err)
+		}
+		for _, result := range locationArea.Results {
+			fmt.Println(result.Name)
+
+		}
+		fmt.Println("pulled form cache")
+
 	}
 
 	cfg.Next = &locationArea.Next
@@ -141,6 +178,7 @@ func commandMapb(cfg *config) error {
 type config struct {
 	Next     *string
 	Previous *string
+	cache    *pokecache.Cache
 }
 
 type cliCommand struct {
